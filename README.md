@@ -1,61 +1,86 @@
-# 🎮 Game Glitch Investigator: The Impossible Guesser
+# Applied AI System: Game Glitch Investigator + Auto-Solver Agent
 
-## 🚨 The Situation
+## Base Project
+This project extends my Module 1 submission, **Game Glitch Investigator**
+(originally at `ai110-module1show-gameglitchinvestigator-starter`), a Streamlit
+number-guessing game with hint logic, scoring, and a small pytest suite.
 
-You asked an AI to build a simple "Number Guessing Game" using Streamlit.
-It wrote the code, ran away, and now the game is unplayable. 
+For this final project, I extended it with an **agentic AI feature**: an
+autonomous agent that plays the game on its own, demonstrating a full
+plan -> act -> check -> guardrail loop integrated directly with the game's
+existing logic (`logic_utils.py`).
 
-- You can't win.
-- The hints lie to you.
-- The secret number seems to have commitment issues.
+## What It Does
+- The original game lets a human guess a secret number with hints (Higher/Lower).
+- The new `agent.py` module adds an **AutoSolverAgent** that:
+  - **Plans** its next guess using binary search over the valid range
+  - **Acts** by submitting that guess through the game's real `check_guess()` function
+  - **Checks** that each hint is logically consistent with prior guesses (a guardrail
+    against buggy/contradictory hints, which was the original bug in this game)
+  - **Logs** every step to `agent_log.txt` for auditability
+  - Repeats until it wins or a guardrail trips, instead of looping forever
 
-## 🛠️ Setup
+This is not a separate script bolted on the side — the agent calls the same
+`check_guess()` and `get_range_for_difficulty()` functions the human-facing
+game uses, so it is testing and exercising the real game logic.
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. Run the broken app: `python -m streamlit run app.py`
+## Setup
+1. Clone this repo and enter the folder.
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Run the original human-playable game:
+   ```
+   python -m streamlit run app.py
+   ```
+4. Run the autonomous agent on its own:
+   ```
+   python3 agent.py
+   ```
+5. Run the automated test suite:
+   ```
+   python3 -m pytest tests/ -v
+   ```
 
-## 🕵️‍♂️ Your Mission
+## Architecture
+See `diagrams/architecture.mmd` for the full Mermaid source diagram, showing
+input -> agentic loop -> output, plus where logging and pytest provide
+human-checkable oversight.
 
-1. **Play the game.** Open the "Developer Debug Info" tab in the app to see the secret number. Try to win.
-2. **Find the State Bug.** Why does the secret number change every time you click "Submit"? Ask ChatGPT: *"How do I keep a variable from resetting in Streamlit when I click a button?"*
-3. **Fix the Logic.** The hints ("Higher/Lower") are wrong. Fix them.
-4. **Refactor & Test.** - Move the logic into `logic_utils.py`.
-   - Run `pytest` in your terminal.
-   - Keep fixing until all tests pass!
+## Example Runs
 
-## 📝 Document Your Experience
-
-- **Game purpose:** A simple number-guessing game built with Streamlit where the player guesses a secret integer in a difficulty-dependent range. The UI shows hints (higher/lower), tracks attempts, and scores the player based on how quickly they win.
-- **Bugs found:** Hints were sometimes reversed (telling the player to go higher when their guess was already higher than the secret). The game state could be reset unexpectedly across interactions and the core guess-checking logic was split between files, making it hard to test.
-- **Fixes applied:** Centralized game logic into `logic_utils.py`, fixed the `check_guess` comparison so hints match the secret, added and ran unit tests for `get_range_for_difficulty`, `parse_guess`, `check_guess`, and `update_score`, and annotated the code with short collaboration comments documenting agent–user pairing.
-
-
-## Demo Walkthrough
-
-1. Start the app on `Normal` difficulty (range 1–100). Open "Developer Debug Info" and note the secret is 55.
-2. User enters a guess of `40` and clicks Submit.
-   - Game returns: "Too Low"
-   - Score updates: 0 -> -5 (wrong guess penalty)
-3. User enters a guess of `70` and clicks Submit.
-   - Game returns: "Too High"
-   - Score updates: -5 -> -10
-4. User enters a guess of `55` and clicks Submit.
-   - Game returns: "🎉 Correct!" and shows final score
-   - Score updates: -10 -> 70 (win points: 100 - 10*(attempt_number-1) = 80 added)
-5. Game state changes to `won`; further submits are disabled until New Game is pressed.
-
-This textual walkthrough shows the end-to-end behavior (hints, scoring, attempts, and final state) without needing a screenshot.
-
-## Test Output (Challenge 1: Advanced Edge-Case Testing)
-
-The pytest run after the fixes produced:
-
+**Example 1 — Agent solves a Normal-difficulty game:**
 ```
-.........                                                                [100%]
-9 passed in 0.00s
+$ python3 agent.py
+{'solved': True, 'attempts': 6, 'history': [(50, 'Too High'), (25, 'Too Low'), (37, 'Too Low'), (43, 'Too Low'), (46, 'Too High'), (44, 'Win')]}
 ```
 
+**Example 2 — Automated test suite (reliability evidence):**
+```
+$ python3 -m pytest tests/test_agent.py -v
+tests/test_agent.py::test_agent_solves_easy PASSED
+tests/test_agent.py::test_agent_solves_normal PASSED
+tests/test_agent.py::test_agent_solves_within_log2_attempts PASSED
+tests/test_agent.py::test_agent_solves_edge_low PASSED
+tests/test_agent.py::test_agent_solves_edge_high PASSED
+tests/test_agent.py::test_agent_fails_gracefully_with_low_max_attempts PASSED
+6 passed in 0.01s
+```
 
-## 🚀 Stretch Features
+**Example 3 — Guardrail path (forced failure, proves error handling isn't just theoretical):**
+```
+$ python3 -c "from agent import AutoSolverAgent; print(AutoSolverAgent(secret=99, max_attempts=1).run())"
+{'solved': False, 'reason': 'max_attempts_exceeded', 'attempts': 1, 'history': [...]}
+```
 
-- [ ] [If you choose to complete Challenge 4, insert a screenshot of your Enhanced Game UI here]
+## Reliability Summary
+6 out of 6 automated tests passed, covering: normal-range solving, easy/hard
+difficulty edge cases, an upper bound on attempts (binary search should never
+exceed 7 guesses on a 1-100 range), and a forced failure case to confirm the
+agent fails gracefully (returns a structured result) rather than crashing or
+looping forever when it can't finish in time.
+
+## Reflection
+See `model_card.md` for limitations, misuse considerations, and a description
+of AI collaboration during this project.
