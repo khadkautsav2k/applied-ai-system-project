@@ -1,0 +1,26 @@
+flowchart TD
+    A[User selects difficulty] --> B[Streamlit App - app.py]
+    B --> C[logic_utils.py: get_range_for_difficulty]
+    C --> D[Secret number generated]
+
+    subgraph Agentic Loop - agent.py
+        E[PLAN: pick next guess via binary search] --> F[ACT: check_guess against secret]
+        F --> G{CHECK: outcome consistent with range?}
+        G -- No --> H[GUARDRAIL: log error, stop]
+        G -- Yes --> I[Update range low/high]
+        I --> J{Win?}
+        J -- No --> E
+        J -- Yes --> K[Return result: solved, attempts, history]
+    end
+
+    D --> E
+    K --> L[agent_log.txt: full trace of guesses and outcomes]
+    K --> M[pytest test suite: verifies solve rate and guardrail behavior]
+
+    subgraph Human Oversight
+        N[Developer reviews agent_log.txt]
+        O[Developer runs pytest to verify reliability]
+    end
+
+    L --> N
+    M --> O
